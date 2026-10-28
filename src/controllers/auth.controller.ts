@@ -5,7 +5,16 @@ import pool from "../config/db";
 import { getAuthenticatedUser, type AuthUser } from "../middlewares/auth";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { ApiError } from "../utils/api-error";
-import { parseAuthInput, registerSchema, loginSchema, updateProfileSchema } from "../schemas/auth.schema";
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  parseAuthInput,
+  registerSchema,
+  resetPasswordSchema,
+  updateProfileSchema,
+  verifyOtpSchema,
+} from "../schemas/auth.schema";
+import { requestPasswordReset, resetPassword, verifyPasswordResetOtp } from "../services/password-reset.service";
 
 interface UserRow extends RowDataPacket {
   id: string;
@@ -101,6 +110,24 @@ export async function login(expectedRoles: readonly AuthUser["role"][], req: Req
     expiresIn: 604800,
     user: toPublicUser(user),
   });
+}
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  const { email } = parseAuthInput(forgotPasswordSchema, req.body);
+  await requestPasswordReset(email);
+  res.status(202).json({ message: "Jika email terdaftar, kode OTP akan dikirim." });
+}
+
+export async function verifyOtp(req: Request, res: Response): Promise<void> {
+  const { email, otp } = parseAuthInput(verifyOtpSchema, req.body);
+  const resetToken = await verifyPasswordResetOtp(email, otp);
+  res.json({ message: "OTP berhasil diverifikasi.", resetToken, expiresIn: 600 });
+}
+
+export async function resetPasswordHandler(req: Request, res: Response): Promise<void> {
+  const { email, resetToken, newPassword } = parseAuthInput(resetPasswordSchema, req.body);
+  await resetPassword(email, resetToken, newPassword);
+  res.json({ message: "Password berhasil diperbarui. Silakan login kembali." });
 }
 
 export async function getMe(req: Request, res: Response): Promise<void> {

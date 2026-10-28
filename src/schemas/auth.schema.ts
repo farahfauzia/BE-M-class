@@ -35,9 +35,27 @@ export const updateProfileSchema = z
     path: ["body"],
   });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().max(254, "email tidak boleh melebihi 254 karakter.").email("Format email tidak valid.").transform((email) => email.toLowerCase()),
+});
+
+export const verifyOtpSchema = z.object({
+  email: z.string().trim().max(254, "email tidak boleh melebihi 254 karakter.").email("Format email tidak valid.").transform((email) => email.toLowerCase()),
+  otp: z.string().regex(/^\d{6}$/, "OTP harus terdiri dari 6 angka."),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().trim().max(254, "email tidak boleh melebihi 254 karakter.").email("Format email tidak valid.").transform((email) => email.toLowerCase()),
+  resetToken: z.string().regex(/^[a-f0-9]{64}$/, "Token reset tidak valid."),
+  newPassword: z.string().min(8, "Password harus terdiri dari 8 sampai 128 karakter.").max(128, "Password harus terdiri dari 8 sampai 128 karakter."),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 export function parseAuthInput<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
