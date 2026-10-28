@@ -5,6 +5,7 @@ import pool from "../config/db";
 import { getAuthenticatedUser, type AuthUser } from "../middlewares/auth";
 import { hashPassword, verifyPassword } from "../utils/password";
 import { ApiError } from "../utils/api-error";
+import { parseAuthInput, registerSchema, loginSchema, updateProfileSchema } from "../schemas/auth.schema";
 
 interface UserRow extends RowDataPacket {
   id: string;
@@ -22,22 +23,6 @@ interface PublicUser {
   nisn: string;
   email: string;
   role: AuthUser["role"];
-}
-
-function getBody(req: Request): Record<string, unknown> {
-  const body: unknown = req.body;
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    throw new ApiError(400, "Body request harus berupa object JSON.");
-  }
-  return body as Record<string, unknown>;
-}
-
-function requiredString(body: Record<string, unknown>, field: string): string {
-  const value = body[field];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new ApiError(400, `${field} wajib diisi.`);
-  }
-  return value.trim();
 }
 
 function toPublicUser(user: Pick<UserRow, "id" | "name" | "nisn" | "email" | "role">): PublicUser {
@@ -65,21 +50,7 @@ async function createSession(userId: string): Promise<string> {
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
-  const body = getBody(req);
-  const name = requiredString(body, "name");
-  const nisn = requiredString(body, "nisn");
-  const email = requiredString(body, "email").toLowerCase();
-  const password = body.password;
-
-  if (name.length > 150 || nisn.length > 32 || email.length > 254) {
-    throw new ApiError(400, "Nama, NISN, atau email melebihi batas panjang.");
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new ApiError(400, "Format email tidak valid.");
-  }
-  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
-    throw new ApiError(400, "Password harus terdiri dari 8 sampai 128 karakter.");
-  }
+  const { name, nisn, email, password } = parseAuthInput(registerSchema, req.body);
 
   try {
     const passwordHash = await hashPassword(password);
@@ -100,12 +71,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function login(expectedRoles: readonly AuthUser["role"][], req: Request, res: Response): Promise<void> {
-  const body = getBody(req);
-  const identity = requiredString(body, "identity").toLowerCase();
-  const password = body.password;
-  if (typeof password !== "string" || password.length === 0) {
-    throw new ApiError(400, "password wajib diisi.");
-  }
+  const { identity, password } = parseAuthInput(loginSchema, req.body);
 
   const [rows] = await pool.execute<UserRow[]>(
     `SELECT id, name, nisn, email, password_hash, role, is_active
@@ -142,29 +108,18 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateMe(req: Request, res: Response): Promise<void> {
-  const body = getBody(req);
-  const allowedFields = ["name", "nisn", "email"] as const;
+  const body = parseAuthInput(updateProfileSchema, req.body);
   const updates: string[] = [];
   const values: string[] = [];
 
-  for (const field of allowedFields) {
-    if (body[field] !== undefined) {
-      const value = requiredString(body, field);
-      const maxLength = field === "name" ? 150 : field === "email" ? 254 : 32;
-      if (value.length > maxLength) {
-        throw new ApiError(400, `${field} melebihi batas panjang.`);
-      }
-      if (field === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        throw new ApiError(400, "Format email tidak valid.");
-      }
+  for (const field of ["name", "nisn", "email"] as const) {
+    const value = body[field];
+    if (value !== undefined) {
       updates.push(`${field} = ?`);
-      values.push(field === "email" ? value.toLowerCase() : value);
+      values.push(value);
     }
   }
 
-  if (updates.length === 0) {
-    throw new ApiError(400, "Isi setidaknya satu field: name, nisn, atau email.");
-  }
   const user = getAuthenticatedUser(req);
   values.push(user.id);
 

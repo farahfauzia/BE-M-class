@@ -15,7 +15,22 @@ app.get("/", (_req, res) => {
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (error instanceof ApiError) {
-    res.status(error.statusCode).json({ message: error.message });
+    res.status(error.statusCode).json({
+      message: error.message,
+      ...(error.errors ? { errors: error.errors } : {}),
+    });
+    return;
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "type" in error &&
+    error.type === "entity.parse.failed"
+  ) {
+    res.status(400).json({
+      message: "Validasi gagal.",
+      errors: { body: "Body request harus berupa JSON yang valid." },
+    });
     return;
   }
   console.error("Unhandled request error:", error);
