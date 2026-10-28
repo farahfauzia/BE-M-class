@@ -21,7 +21,13 @@ declare global {
   }
 }
 
-interface AuthSessionRow extends RowDataPacket, AuthUser {}
+interface AuthSessionRow extends RowDataPacket {
+  id: string | number;
+  name: string;
+  nisn: string;
+  email: string;
+  role: AuthUser["role"];
+}
 
 export function getAuthenticatedUser(req: Request): AuthUser {
   if (!req.authUser) {
@@ -66,7 +72,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     throw new ApiError(401, "Sesi tidak valid atau sudah kedaluwarsa.");
   }
 
-  req.authUser = user;
+  req.authUser = { ...user, id: String(user.id) };
   req.authTokenHash = tokenHash;
   next();
 }

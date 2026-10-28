@@ -64,6 +64,7 @@ async function sendOtpEmail(email: string, otp: string): Promise<void> {
   const password = process.env.SMTP_PASSWORD;
   const from = process.env.SMTP_FROM;
   const port = Number(process.env.SMTP_PORT);
+  const secure = process.env.SMTP_SECURE === "true";
   if (!host || !user || !password || !from || !Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM must be configured.");
   }
@@ -71,7 +72,8 @@ async function sendOtpEmail(email: string, otp: string): Promise<void> {
   const transporter = nodemailer.createTransport({
     host,
     port,
-    secure: process.env.SMTP_SECURE === "true",
+    secure,
+    requireTLS: !secure,
     auth: { user, pass: password },
   });
   try {
@@ -132,11 +134,11 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
 
   if (canSend && userId !== null) {
-    try {
-      await sendOtpEmail(email, otp);
-    } catch (error) {
-      console.error("Password reset email delivery failed:", error);
-    }
+    setImmediate(() => {
+      void sendOtpEmail(email, otp).catch((error: unknown) => {
+        console.error("Password reset email delivery failed:", error);
+      });
+    });
   }
 }
 

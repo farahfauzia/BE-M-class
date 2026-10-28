@@ -36,7 +36,7 @@ interface PublicUser {
 
 function toPublicUser(user: Pick<UserRow, "id" | "name" | "nisn" | "email" | "role">): PublicUser {
   return {
-    id: user.id,
+    id: String(user.id),
     name: user.name,
     nisn: user.nisn,
     email: user.email,
